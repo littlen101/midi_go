@@ -19,25 +19,111 @@ func main() {
 	}
 	//Get hex string comprised of file contents
 	hexMIDI := hex.EncodeToString(file)
-	tracks := getTracks(hexMIDI)
-	for _, track := range tracks {
-		getEvents(track)
+	tracks ,format := getTracks(hexMIDI)
+	for i := 0; i < len(tracks); i++ {
+		trackNumber := i + 1
+		if format == 1 {
+			trackNumber++
+		}
+		getEvents(tracks[i], trackNumber)
 	}
 }
 
-func getEvents(track string) {
+func getEvents(track string, trackNumber int) {
 	track = track[8 * 2:] //the first four bytes are the track header and don't contain events
-	//We only care about note on and off events
-	deltaTime := getDeltaTime(track)
-	deltaTime++
+	//We only care about note on and off
+	currentTime := 0
+	deltaTime, length := getVariableLengthNumber(track)
+	currentTime += deltaTime
+	track = track[length * 2:]
+	eventData, eventLength := getEvent(track)
+	for eventData != trackEnd {
+		fmt.Println(eventData)
+		track = track[eventLength*2:]
+		if eventLength == 3 {
+			firstChar := eventData[0:1]
+			if firstChar == "8" {
+				noteOn(currentTime, eventData, trackNumber)
+			} else if firstChar == "9" {
+				noteOff(currentTime, eventData, trackNumber)
+			}
+		}
+		//For next event
+		deltaTime, length := getVariableLengthNumber(track)
+		currentTime += deltaTime
+		track = track[length * 2:]
+		eventData, eventLength = getEvent(track)
+	}
+	/*
+	for each event
+		get delta time
+		trim delta time from event index indicates the last byte within the delta time
+	 */
+}
+
+func noteOff(currentTime int, data string, trackNumber int) {
+//TODO
+}
+
+func noteOn(currentTime int, data string, trackNumber int) {
+//TODO
+}
+
+func getEvent(track string) (string, int) {
+	firstByte := substring(track, 0, 1)
+	var eventLength int
+	switch firstByte {
+	case "f0":
+		fallthrough
+	case "f1":
+		eventLength = getEventLength(track, 2)
+	case "ff":
+		secondByte := substring(track, 1, 2)
+		switch secondByte {
+		case "20":
+			eventLength = 4
+		case "2f":
+			eventLength = 3
+		case "51":
+			eventLength = 6
+		case "54":
+			eventLength = 8
+		case "58":
+			eventLength = 7
+		case "00":
+			fallthrough
+		case "59":
+			eventLength = 5
+		default:
+			eventLength = getEventLength(track, 2)
+		}
+	default:
+		firstChar := firstByte[0:1]
+		if (firstChar == "c") || (firstChar == "d") {
+			eventLength = 2
+		} else {
+			eventLength = 3
+		}
+	}
+	return substring(track, 0, eventLength), eventLength
 }
 /*
-	Gets the variable-length delta time by implenting the algorithm described below
+	Returns the total number of bytes an event uses
+ */
+func getEventLength(event string, varOffset int) int {
+	eventLength, length := getVariableLengthNumber(event[varOffset * 2:])
+	return eventLength + length + varOffset
+}
+
+/*
+	Gets the variable-length number by implementing the algorithm described below
 	http://valentin.dasdeck.com/midi/midifile.htm
 	Each non-terminal byte will have a  1 as the leftmost bit.
 	All bytes will ignore the left most bit
+
+	returns the variable length number and its length in bytes
  */
-func getDeltaTime(track string) int {
+func getVariableLengthNumber(track string) (int, int) {
 	index := 0
 	value := getInt(track, index, index + 1)
 	if (value & 0x80) != 0 { //check if leftmost bit is 1
@@ -51,13 +137,13 @@ func getDeltaTime(track string) int {
 			value = (value << 7) + byte & 0x7F
 		}
 	}
-	return value
+	return value, index + 1
 }
 /*
 	Returns an array of hex strings containing one track per string
 	If the MIDI file is in format 1, we ignore the first track
  */
-func getTracks(hexMIDI string) []string {
+func getTracks(hexMIDI string) ([]string, int) {
 	//Get information from the file header
 	length, format, numTracks := getHeaderInfo(hexMIDI)
 	fmt.Printf("Header Length: %d\nFormat: %d\nNumber of Tracks: %d\n", length, format, numTracks)
@@ -74,7 +160,7 @@ func getTracks(hexMIDI string) []string {
 		tracks = tracks[1:]
 	}
 	//We don't need to do anything for format 2
-	return tracks
+	return tracks, format
 }
 
 /* First character is index 0
