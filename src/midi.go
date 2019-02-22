@@ -31,8 +31,14 @@ func (ns *NoteStack) push(pnote PartialNote) {
 
 // returns a partial note of the top of the stack
 func (ns *NoteStack) pop() PartialNote {
-	item := ns.s[len(ns.s)-1]
-	ns.s = ns.s[:len(ns.s)-1]
+	var item PartialNote
+
+	if ns.length() == 0 {
+		fmt.Println("Nothing to pop")
+	} else {
+		item = ns.s[len(ns.s)-1]
+		ns.s = ns.s[:len(ns.s)-1]
+	}
 
 	return item
 }
@@ -129,7 +135,6 @@ func main() {
 		getEvents(tracks[i], trackNumber)
 	}
 
-	stripNoteMeta("903e40")
 }
 
 func getEvents(track string, trackNumber int) {
@@ -145,12 +150,13 @@ func getEvents(track string, trackNumber int) {
 		track = track[eventLength*2:]
 		if eventLength == 3 {
 			firstChar := eventData[0:1]
-			if firstChar == "8" {
+			if firstChar == "9" {
 				noteOn(currentTime, eventData, trackNumber)
-			} else if firstChar == "9" {
+			} else if firstChar == "8" {
 				noteOff(currentTime, eventData, trackNumber)
 			}
 		}
+
 		//For next event
 		deltaTime, length := getVariableLengthNumber(track)
 		currentTime += deltaTime
