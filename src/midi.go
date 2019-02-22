@@ -47,7 +47,7 @@ type PartialNote struct {
 }
 
 // Compare Interface of PartialNotes
-func (pn *PartialNote) compare(other PartialNote) bool {
+func (pn *PartialNote) equals(other PartialNote) bool {
 	return other.midiNumber == pn.midiNumber
 }
 
@@ -57,6 +57,29 @@ type Note struct {
 	midiNumber     int // (A|B|C ..)(octave) needed for searching
 	track, channel int //octave seem synonymous with the pitch
 	// Comparing it to B3 and C4, which are simultaneous events, B3 is always before C4
+}
+
+func (n *Note) compare(other Note) int {
+	comp := 1
+	if n.start == other.start {
+		if n.midiNumber == other.midiNumber {
+			if n.track == other.track {
+				if n.channel == other.channel {
+					comp = 0
+				} else if n.channel < other.channel {
+					comp = -1
+				}
+			} else if n.track < other.track {
+				comp = -1
+			}
+		} else if n.midiNumber < other.midiNumber {
+			comp = -1
+		}
+	} else if n.start < other.start {
+		comp = -1
+	}
+
+	return comp
 }
 
 // Goes into midiNote map and takes the note = index 0
@@ -159,7 +182,7 @@ func noteOff(currentTime int, data string, trackNumber int) Note {
 
 	// Go through the stack until you find a corresponding on note
 	cNote := notesOnStack.pop()
-	for !endNote.compare(cNote) {
+	for !endNote.equals(cNote) {
 		notesOnContainer.push(cNote)
 		cNote = notesOnStack.pop()
 	}
