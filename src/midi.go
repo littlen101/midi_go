@@ -34,18 +34,164 @@ func (ns *NoteStack) pop() PartialNote {
 
 // End of Stack
 
+// A Note that does not have its ending
+type PartialNote struct {
+	start          int // only the start of a note
+	midiNumber     int // (A|B|C ..)(octave) needed for searching
+	track, channel int
+}
+
 // A full note that has a beginning tick and ending tick
 type Note struct {
-	start, end             int    // The start and ending ticks to determine duration and order
-	note                   string // A|B|C ..
-	octave, track, channel int    //octave seem synonymous with the pitch
+	start, end     int // The start and ending ticks to determine duration and order
+	midiNumber     int // (A|B|C ..)(octave) needed for searching
+	track, channel int //octave seem synonymous with the pitch
 	// Comparing it to B3 and C4, which are simultaneous events, B3 is always before C4
 }
 
-type PartialNote struct {
-	start                  int    // only the start of a note
-	note                   string // A|B|C ..
-	octave, track, channel int    // octave and note are needed for searching
+// A relation between the midi number and a given note on a keyboard (or not applicable)
+var midiNote = map[int][]string{
+	127: {"G", "9"},
+	126: {"F#", "9"},
+	125: {"F", "9"},
+	124: {"E", "9"},
+	123: {"D#", "9"},
+	122: {"D", "9"},
+	121: {"C#", "9"},
+	120: {"C", "9"},
+	119: {"B", "8"},
+	118: {"A#", "8"},
+	117: {"A", "8"},
+	116: {"G#", "8"},
+	115: {"G", "8"},
+	114: {"F#", "8"},
+	113: {"F", "8"},
+	112: {"E", "8"},
+	111: {"D#", "8"},
+	110: {"D", "8"},
+	109: {"C#", "8"},
+	108: {"C", "8"},
+	107: {"B", "7"},
+	106: {"A#", "7"},
+	105: {"A", "7"},
+	104: {"G#", "7"},
+	103: {"G", "7"},
+	102: {"F#", "7"},
+	101: {"F", "7"},
+	100: {"E", "7"},
+	99:  {"D#", "7"},
+	98:  {"D", "7"},
+	97:  {"C#", "7"},
+	96:  {"C", "7"},
+	95:  {"B", "6"},
+	94:  {"A#", "6"},
+	93:  {"A", "6"},
+	92:  {"G#", "6"},
+	91:  {"G", "6"},
+	90:  {"F#", "6"},
+	89:  {"F", "6"},
+	88:  {"E", "6"},
+	87:  {"D#", "6"},
+	86:  {"D", "6"},
+	85:  {"C#", "6"},
+	84:  {"C", "6"},
+	83:  {"B", "5"},
+	82:  {"A#", "5"},
+	81:  {"A", "5"},
+	80:  {"G#", "5"},
+	79:  {"G", "5"},
+	78:  {"F#", "5"},
+	77:  {"F", "5"},
+	76:  {"E", "5"},
+	75:  {"D#", "5"},
+	74:  {"D", "5"},
+	73:  {"C#", "5"},
+	72:  {"C", "5"},
+	71:  {"B", "4"},
+	70:  {"A#", "4"},
+	69:  {"A", "4"},
+	68:  {"G#", "4"},
+	67:  {"G", "4"},
+	66:  {"F#", "4"},
+	65:  {"F", "4"},
+	64:  {"E", "4"},
+	63:  {"D#", "4"},
+	62:  {"D", "4"},
+	61:  {"C#", "4"},
+	60:  {"C", "4"},
+	59:  {"B", "3"},
+	58:  {"A#", "3"},
+	57:  {"A", "3"},
+	56:  {"G#", "3"},
+	55:  {"G", "3"},
+	54:  {"F#", "3"},
+	53:  {"F", "3"},
+	52:  {"E", "3"},
+	51:  {"D#", "3"},
+	50:  {"D", "3"},
+	49:  {"C#", "3"},
+	48:  {"C", "3"},
+	47:  {"B", "2"},
+	46:  {"A#", "2"},
+	45:  {"A", "2"},
+	44:  {"G#", "2"},
+	43:  {"G", "2"},
+	42:  {"F#", "2"},
+	41:  {"F", "2"},
+	40:  {"E", "2"},
+	39:  {"D#", "2"},
+	38:  {"D", "2"},
+	37:  {"C#", "2"},
+	36:  {"C", "2"},
+	35:  {"B", "1"},
+	34:  {"A#", "1"},
+	33:  {"A", "1"},
+	32:  {"G#", "1"},
+	31:  {"G", "1"},
+	30:  {"F#", "1"},
+	29:  {"F", "1"},
+	28:  {"E", "1"},
+	27:  {"D#", "1"},
+	26:  {"D", "1"},
+	25:  {"C#", "1"},
+	24:  {"C", "1"},
+	23:  {"B", "0"},
+	22:  {"A#", "0"},
+	21:  {"A", "0"},
+	20:  {"N/A", "99"}, // The following don't have a note associated to them yet still exist
+	19:  {"N/A", "99"}, // Don't know what to do with that so I am just printing "N/A" for the note with octave 99
+	18:  {"N/A", "99"}, // So that they will be sorted the lowest if played at a time x with other notes
+	17:  {"N/A", "99"},
+	16:  {"N/A", "99"},
+	15:  {"N/A", "99"},
+	14:  {"N/A", "99"},
+	13:  {"N/A", "99"},
+	12:  {"N/A", "99"},
+	11:  {"N/A", "99"},
+	10:  {"N/A", "99"},
+	9:   {"N/A", "99"},
+	8:   {"N/A", "99"},
+	7:   {"N/A", "99"},
+	6:   {"N/A", "99"},
+	5:   {"N/A", "99"},
+	4:   {"N/A", "99"},
+	3:   {"N/A", "99"},
+	2:   {"N/A", "99"},
+	1:   {"N/A", "99"},
+	0:   {"N/A", "99"},
+}
+
+// Goes into midiNote map and takes the note = index 0
+func (n *Note) getNote() string {
+	// map -> [Note, Octave]
+	return midiNote[n.midiNumber][0]
+}
+
+// Goes into midiNote map and takes the octave = index 1
+func (n *Note) getOctave() int {
+	// map -> [Note, Octave]
+	octave, _ := strconv.Atoi(midiNote[n.midiNumber][1])
+	return octave
 }
 
 // Gives the difference between the start and end times
@@ -56,13 +202,17 @@ func (n *Note) duration() int {
 // Using the template format on project site constructs a string with the following format
 //ticks     note octave duration track channel
 func (n *Note) String() string {
-	return fmt.Sprintf("%7d:  %-4s %5d %5d %2d %2d", n.start, n.note, n.octave, n.duration(), n.track, n.channel)
+	return fmt.Sprintf("%7d:  %-4s %5d %5d %2d %2d",
+		n.start, n.getNote(), n.getOctave(), n.duration(), n.track, n.channel)
 }
 
-var notesOnStack = NoteStack{make([]PartialNote, 0)}
-var notesOnContainer = NoteStack{make([]PartialNote, 0)}
+var notesOnStack NoteStack
+var notesOnContainer NoteStack
 
 func main() {
+	notesOnStack = NoteStack{make([]PartialNote, 0)}
+	notesOnContainer = NoteStack{make([]PartialNote, 0)}
+
 	file, err := ioutil.ReadFile(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
@@ -77,6 +227,8 @@ func main() {
 		}
 		getEvents(tracks[i], trackNumber)
 	}
+
+	stripNoteMeta("903e40")
 }
 
 func getEvents(track string, trackNumber int) {
@@ -111,12 +263,22 @@ func getEvents(track string, trackNumber int) {
 	*/
 }
 
+func stripNoteMeta(data string) {
+	// Take bit 1 and + 1 to get channel number
+	x, _ := strconv.ParseInt(data[1:2], 10, 32)
+	channel := x + 1
+
+	// Get MIDI Note number
+	fmt.Println(strconv.ParseUint("37", 16, 32))
+	fmt.Println(channel)
+}
+
 func noteOff(currentTime int, data string, trackNumber int) {
 	//TODO
 }
 
 func noteOn(currentTime int, data string, trackNumber int) {
-	//TODO
+	//
 }
 
 func getEvent(track string) (string, int) {
