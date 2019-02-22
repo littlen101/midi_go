@@ -109,17 +109,31 @@ func (n *Note) duration() int {
 // Using the template format on project site constructs a string with the following format
 //ticks     note octave duration track channel
 func (n *Note) String() string {
-	return fmt.Sprintf("%7d:  %-4s %5d %5d %2d %2d",
+	return fmt.Sprintf("%07d:  %-4s %-5d %05d %02d %02d",
 		n.start, n.getNote(), n.getOctave(), n.duration(), n.track, n.channel)
 }
 
-var notesOnStack NoteStack
-var notesOnContainer NoteStack
+var notesOnStack NoteStack	//Holds Partial Notes
+var notesOnContainer NoteStack //Holds Partial Notes while search stack for note to turn off
+
+type NoteList struct {
+	head Node
+	tail Node
+}
+
+type Node struct {
+	note Note
+	next Note
+}
+func (noteList *NoteList) Insert(note Note)  {
+	//If head.note = nil, set node as head.note
+	//Else check to see where to add it using compare
+}
+
 
 func main() {
 	notesOnStack = NoteStack{make([]PartialNote, 0)}
 	notesOnContainer = NoteStack{make([]PartialNote, 0)}
-
 	file, err := ioutil.ReadFile(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
@@ -146,14 +160,14 @@ func getEvents(track string, trackNumber int) {
 	track = track[length*2:]
 	eventData, eventLength := getEvent(track)
 	for eventData != trackEnd {
-		fmt.Println(eventData)
 		track = track[eventLength*2:]
 		if eventLength == 3 {
 			firstChar := eventData[0:1]
 			if firstChar == "9" {
 				noteOn(currentTime, eventData, trackNumber)
 			} else if firstChar == "8" {
-				noteOff(currentTime, eventData, trackNumber)
+				n := noteOff(currentTime, eventData, trackNumber)
+				fmt.Println(n.String())
 			}
 		}
 
