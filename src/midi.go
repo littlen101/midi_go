@@ -12,22 +12,55 @@ import (
 
 var trackEnd = "ff2f00"
 
+// FILO, uses a simple array to simulate a stack
+// Mutable and weak implementation, ONLY USE FUNCTIONS TO MANIPULATE
+type NoteStack struct {
+	s []PartialNote
+}
+
+// adds element to the tail of slice || top of stack
+// [a0, a1, a2, ...., an-1], an -> [a0, a1, a2, ...., an-1, an]
+func (ns *NoteStack) push(pnote PartialNote) {
+	ns.s = append(ns.s, pnote)
+}
+
+// returns a partial note of the top of the stack
+func (ns *NoteStack) pop() PartialNote {
+	item := ns.s[len(ns.s)-1]
+	ns.s = ns.s[:len(ns.s)-1]
+
+	return item
+}
+
+// End of Stack
+
+// A full note that has a beginning tick and ending tick
 type Note struct {
-	start, end             string
-	note                   string
-	octave, track, channel int //octave seem synonymous with the pitch
+	start, end             int    // The start and ending ticks to determine duration and order
+	note                   string // A|B|C ..
+	octave, track, channel int    //octave seem synonymous with the pitch
 	// Comparing it to B3 and C4, which are simultaneous events, B3 is always before C4
 }
 
-func (n *Note) duration() int64 {
-	end, _ := strconv.ParseInt(n.end, 10, 32)
-	start, _ := strconv.ParseInt(n.start, 10, 32)
+type PartialNote struct {
+	start                  int    // only the start of a note
+	note                   string // A|B|C ..
+	octave, track, channel int    // octave and note are needed for searching
+}
 
-	return end - start
+// Gives the difference between the start and end times
+func (n *Note) duration() int {
+	return n.end - n.start
 }
+
+// Using the template format on project site constructs a string with the following format
+//ticks     note octave duration track channel
 func (n *Note) String() string {
-	return fmt.Sprintf("%s:  %-4s %5d %5d %2d %2d", n.start, n.note, n.octave, n.duration(), n.track, n.channel)
+	return fmt.Sprintf("%7d:  %-4s %5d %5d %2d %2d", n.start, n.note, n.octave, n.duration(), n.track, n.channel)
 }
+
+var notesOnStack = NoteStack{make([]PartialNote, 0)}
+var notesOnContainer = NoteStack{make([]PartialNote, 0)}
 
 func main() {
 	file, err := ioutil.ReadFile(os.Args[1])
