@@ -1,70 +1,113 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
-	"regexp"
-	"encoding/hex"
-	"strings"
 	"strconv"
+	"strings"
 )
 
-// List of valuable constants
-// Fixed Header Byte size
-const GoHeader = 4
-// Fixed Header Length Byte Size
-const GoLength  = 4
-
+var trackEnd = "ff2f00"
 
 func main() {
-	f, err := ioutil.ReadFile(os.Args[1])
+	file, err := ioutil.ReadFile(os.Args[1])
 	if err != nil {
-		fmt.Println("ioutil.ReadFile failed:", err)
+		log.Fatal(err)
 	}
-
-
-	// Turn file in to hex string and split by every byte [[FF], ...]
-	encodedString := hex.EncodeToString(f)
-	encodedArray := regexp.MustCompile("..?").FindAllStringSubmatch(encodedString, -1)
-
-	// Extract information from header of MIDI file
-	encodedArray, length := extractHeader(encodedArray)
-
-	fmt.Println(encodedArray)
-	d, _ := strconv.ParseInt("0x" + length, 0, 32)
-	fmt.Println(d)
-	fmt.Println(length)
-}
-
-// Extracts all the information from the "Header Chunk"
-// Returns valuable information as a k-tuple
-func extractHeader(encodedArray [][]string) ([][] string, string){
-	// Throw away MThd
-	resultArr := encodedArray[GoHeader:]
-
-	// Grab the "length" of "Data" usually 6 as a String
-	lengthHexString := sliceToHexString(combineSlice(resultArr[: GoLength])) //Can parse this to be an int
-	// With this ----> strconv.ParseInt(lengthHexString, 0, 32)
-	// That way we can then slice out the next bytes ---> encodedArray[:length]
-
-	return resultArr, lengthHexString
-}
-
-// Joins together a list of byte string [34 , FC, 49 ....] into on Hex String
-// appends it to "0x" which says this is a hex number to parsers
-func sliceToHexString(slice []string)(string){
-	return "0x" + strings.Join(slice, "")
-}
-
-// Take a list of lists or slice of slices and puts them into one list
-// [[FD] , [34], [A0], ... ] -> [FD, 34, A0, ...]
-func combineSlice(slice [][] string) ([]string){
-	resultSlice := make([]string,0)
-
-	for _, element := range slice {
-		resultSlice = append(resultSlice, element[0])
+	//Get hex string comprised of file contents
+	hexMIDI := hex.EncodeToString(file)
+	tracks := getTracks(hexMIDI)
+	for _, track := range tracks {
+		getEvents(track)
 	}
+}
 
-	return resultSlice
+func getEvents(track string) {
+	track = track[8*2:] //the first four bytes are the track header and don't contain events
+	//We only care about note on and off events
+	deltaTime := getDeltaTime(track)
+	deltaTime++
+}
+
+/*
+	Gets the variable-length delta time by implenting the algorithm described below
+	http://valentin.dasdeck.com/midi/midifile.htm
+	Each non-terminal byte will have a  1 as the leftmost bit.
+	All bytes will ignore the left most bit
+*/
+func getDeltaTime(track string) int {
+	index := 0
+	value := getInt(track, index, index+1)
+	if (value & 0x80) != 0 { //check if leftmost bit is 1
+		msb := value  //if it is 1, then //Most Significant Bit
+		value &= 0x7F //set it to 0
+		//Check the next byte we're adding
+		for msb&0x80 != 0 {
+			//Add it to the current value
+			index++
+			msb = getInt(track, index, index+1)
+			value = (value << 7) + msb&0x7F
+		}
+	}
+	return value
+}
+
+/*
+	Returns an array of hex strings containing one track per string
+	If the MIDI file is in format 1, we ignore the first track
+*/
+func getTracks(hexMIDI string) []string {
+	//Get information from the file header
+	length, format, numTracks := getHeaderInfo(hexMIDI)
+	fmt.Printf("Header Length: %d\nFormat: %d\nNumber of Tracks: %d\n", length, format, numTracks)
+	//We'll split the rest of the hex string into the tracks
+	//hexMIDI[(8+length)*2:)] gets rid of the header (length doesn't include the first 8 bytes
+	//Split after N uses the track end signifier to split the string into the remaining tracks
+	tracks := strings.SplitAfterN(hexMIDI[(8+length)*2:], trackEnd, numTracks)
+	//Format 0 specifies that only one track should exist
+	if format == 0 && len(tracks) != 1 {
+		fmt.Printf("Error\n")
+	} else if format == 1 {
+		//Format 1 says there's one or more tracks with an intial track containing the tempo info
+		//We don't need this info
+		tracks = tracks[1:]
+	}
+	//We don't need to do anything for format 2
+	return tracks
+}
+
+/* First character is index 0
+ * Includes start, excludes end
+ */
+func substring(s string, start, end int) string {
+	startIndex := start * 2
+	endIndex := end * 2
+	return s[startIndex:endIndex]
+}
+
+/*
+	Returns the integer specified by substring of the hex string
+*/
+func getInt(hexString string, start, end int) int {
+	num, err := strconv.ParseInt(substring(hexString, start, end), 16, 32)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return int(num)
+}
+
+/*
+	Returns information stored in header according to midi specifications
+	https://www.csie.ntu.edu.tw/~r92092/ref/midi/
+*/
+func getHeaderInfo(hexString string) (int, int, int) {
+	//We could use the first four bytes to check if its a valid MIDI file
+	//But I'm assuming it will work
+	length := getInt(hexString, 4, 8)
+	format := getInt(hexString, 8, 10)
+	numTracks := getInt(hexString, 10, 12)
+	return length, format, numTracks
 }
