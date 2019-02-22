@@ -12,6 +12,22 @@ import (
 
 var trackEnd = "ff2f00"
 
+type Note struct {
+	start, end             string
+	note                   string
+	octave, track, channel int //octave seem synonymous with the pitch
+	// Comparing it to B3 and C4, which are simultaneous events, B3 is always before C4
+}
+
+func (n *Note) duration() int64 {
+	end, _ := strconv.ParseInt(n.end, 10, 32)
+	start, _ := strconv.ParseInt(n.start, 10, 32)
+
+	return end - start
+}
+func (n *Note) String() string {
+	return fmt.Sprintf("%s:  %-4s %5d %5d %2d %2d", n.start, n.note, n.octave, n.duration(), n.track, n.channel)
+}
 func main() {
 	file, err := ioutil.ReadFile(os.Args[1])
 	if err != nil {
