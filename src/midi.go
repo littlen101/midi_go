@@ -36,7 +36,7 @@ func main() {
 	}
 	//Get hex string comprised of file contents
 	hexMIDI := hex.EncodeToString(file)
-	tracks ,format := getTracks(hexMIDI)
+	tracks, format := getTracks(hexMIDI)
 	for i := 0; i < len(tracks); i++ {
 		trackNumber := i + 1
 		if format == 1 {
@@ -47,12 +47,12 @@ func main() {
 }
 
 func getEvents(track string, trackNumber int) {
-	track = track[8 * 2:] //the first four bytes are the track header and don't contain events
+	track = track[8*2:] //the first four bytes are the track header and don't contain events
 	//We only care about note on and off
 	currentTime := 0
 	deltaTime, length := getVariableLengthNumber(track)
 	currentTime += deltaTime
-	track = track[length * 2:]
+	track = track[length*2:]
 	eventData, eventLength := getEvent(track)
 	for eventData != trackEnd {
 		fmt.Println(eventData)
@@ -68,22 +68,22 @@ func getEvents(track string, trackNumber int) {
 		//For next event
 		deltaTime, length := getVariableLengthNumber(track)
 		currentTime += deltaTime
-		track = track[length * 2:]
+		track = track[length*2:]
 		eventData, eventLength = getEvent(track)
 	}
 	/*
-	for each event
-		get delta time
-		trim delta time from event index indicates the last byte within the delta time
-	 */
+		for each event
+			get delta time
+			trim delta time from event index indicates the last byte within the delta time
+	*/
 }
 
 func noteOff(currentTime int, data string, trackNumber int) {
-//TODO
+	//TODO
 }
 
 func noteOn(currentTime int, data string, trackNumber int) {
-//TODO
+	//TODO
 }
 
 func getEvent(track string) (string, int) {
@@ -124,11 +124,12 @@ func getEvent(track string) (string, int) {
 	}
 	return substring(track, 0, eventLength), eventLength
 }
+
 /*
 	Returns the total number of bytes an event uses
- */
+*/
 func getEventLength(event string, varOffset int) int {
-	eventLength, length := getVariableLengthNumber(event[varOffset * 2:])
+	eventLength, length := getVariableLengthNumber(event[varOffset*2:])
 	return eventLength + length + varOffset
 }
 
@@ -139,27 +140,28 @@ func getEventLength(event string, varOffset int) int {
 	All bytes will ignore the left most bit
 
 	returns the variable length number and its length in bytes
- */
+*/
 func getVariableLengthNumber(track string) (int, int) {
 	index := 0
-	value := getInt(track, index, index + 1)
+	value := getInt(track, index, index+1)
 	if (value & 0x80) != 0 { //check if leftmost bit is 1
-		byte := value	//if it is 1, then
-		value &= 0x7F	//set it to 0
+		msb := value  //if it is 1, then //Most Significant Bit
+		value &= 0x7F //set it to 0
 		//Check the next byte we're adding
-		for byte & 0x80 != 0 {
+		for msb&0x80 != 0 {
 			//Add it to the current value
 			index++
-			byte = getInt(track, index, index + 1)
-			value = (value << 7) + byte & 0x7F
+			msb = getInt(track, index, index+1)
+			value = (value << 7) + msb&0x7F
 		}
 	}
 	return value, index + 1
 }
+
 /*
 	Returns an array of hex strings containing one track per string
 	If the MIDI file is in format 1, we ignore the first track
- */
+*/
 func getTracks(hexMIDI string) ([]string, int) {
 	//Get information from the file header
 	length, format, numTracks := getHeaderInfo(hexMIDI)
@@ -188,9 +190,10 @@ func substring(s string, start, end int) string {
 	endIndex := end * 2
 	return s[startIndex:endIndex]
 }
+
 /*
 	Returns the integer specified by substring of the hex string
- */
+*/
 func getInt(hexString string, start, end int) int {
 	num, err := strconv.ParseInt(substring(hexString, start, end), 16, 32)
 	if err != nil {
@@ -198,10 +201,11 @@ func getInt(hexString string, start, end int) int {
 	}
 	return int(num)
 }
+
 /*
 	Returns information stored in header according to midi specifications
 	https://www.csie.ntu.edu.tw/~r92092/ref/midi/
- */
+*/
 func getHeaderInfo(hexString string) (int, int, int) {
 	//We could use the first four bytes to check if its a valid MIDI file
 	//But I'm assuming it will work
