@@ -1,0 +1,70 @@
+package main
+
+import (
+	"encoding/hex"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
+	"strconv"
+	"strings"
+)
+
+var header = "4d546864"
+var trackEnd = "ff2f00"
+func main() {
+	file, err := ioutil.ReadFile(os.Args[1])
+	if err != nil {
+		log.Fatal(err)
+	}
+	//Get hex string comprised of file contents
+	hexMIDI := hex.EncodeToString(file)
+
+	//Get information from the file header
+	length, format, numTracks := getHeaderInfo(hexMIDI)
+	fmt.Printf("Header Length: %d\nFormat: %d\nNumber of Tracks: %d\n", length, format, numTracks)
+
+	//We'll split the rest of the hex string into the tracks
+	//hexMIDI[(8+length)*2:)] gets rid of the header (length doesn't include the first 8 bytes
+	//Split after N uses the track end signifier to split the string into the remaining tracks
+	tracks := strings.SplitAfterN(hexMIDI[(8+length) * 2:], trackEnd, numTracks)
+	fmt.Printf("%q\n", tracks)
+	//Format 0 specifies that only one track should exist
+	if format == 0 && len(tracks) != 1 {
+		fmt.Printf("Error\n")
+	} else if format == 1 {
+		//Format 1 says there's one or more tracks with an intial track containing the tempo info
+		//We don't need this info
+		tracks = tracks[1:]
+	} //We don't need to do anything for format 2
+
+}
+
+/* First character is index 0
+ * Includes start, excludes end
+ */
+func substring(s string, start, end int) string {
+	startIndex := start * 2
+	endIndex := end * 2
+	return s[startIndex:endIndex]
+}
+/*
+	Returns the integer specified by substring of the hex string
+ */
+func getInt(hexString string, start, end int) int {
+	num, err := strconv.ParseInt(substring(hexString, start, end), 16, 32)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return int(num)
+}
+/*
+	Returns information stored in header according to midi specifications
+	https://www.csie.ntu.edu.tw/~r92092/ref/midi/
+ */
+func getHeaderInfo(hexString string) (int, int, int) {
+	length := getInt(hexString, 4, 8)
+	format := getInt(hexString, 8, 10)
+	numTracks := getInt(hexString, 10, 12)
+	return length, format, numTracks
+}
