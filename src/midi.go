@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -65,6 +66,7 @@ type Note struct {
 	// Comparing it to B3 and C4, which are simultaneous events, B3 is always before C4
 }
 
+// Uses the Ranking system on the project sight
 func (n *Note) compare(other Note) int {
 	comp := 1
 	if n.start == other.start {
@@ -81,7 +83,7 @@ func (n *Note) compare(other Note) int {
 		} else if n.midiNumber < other.midiNumber {
 			comp = -1
 		}
-	} else if n.start < other.start {
+	} else if n.start > other.start {
 		comp = -1
 	}
 
@@ -109,31 +111,28 @@ func (n *Note) duration() int {
 // Using the template format on project site constructs a string with the following format
 //ticks     note octave duration track channel
 func (n *Note) String() string {
-	return fmt.Sprintf("%07d:  %-4s %-5d %05d %02d %02d",
+	return fmt.Sprintf("%07d:  %-4s %-5d     %05d    %02d      %02d",
 		n.start, n.getNote(), n.getOctave(), n.duration(), n.track, n.channel)
 }
 
-var notesOnStack NoteStack	//Holds Partial Notes
+var notesOnStack NoteStack     //Holds Partial Notes
 var notesOnContainer NoteStack //Holds Partial Notes while search stack for note to turn off
 
-type NoteList struct {
-	head Node
-	tail Node
-}
+// ByAge implements sort.Interface for []Person based on
+// the Age field.
+type ByRank []Note
 
-type Node struct {
-	note Note
-	next Note
-}
-func (noteList *NoteList) Insert(note Note)  {
-	//If head.note = nil, set node as head.note
-	//Else check to see where to add it using compare
-}
-
+func (a ByRank) Len() int           { return len(a) }
+func (a ByRank) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByRank) Less(i, j int) bool { return a[i].compare(a[j]) >= 0 }
 
 func main() {
 	notesOnStack = NoteStack{make([]PartialNote, 0)}
 	notesOnContainer = NoteStack{make([]PartialNote, 0)}
+
+	// A list of notes'
+	var notes = make([]Note, 0)
+
 	file, err := ioutil.ReadFile(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
@@ -141,17 +140,30 @@ func main() {
 	//Get hex string comprised of file contents
 	hexMIDI := hex.EncodeToString(file)
 	tracks, format := getTracks(hexMIDI)
+
+	fmt.Println("ticks     note octave duration track channel")
 	for i := 0; i < len(tracks); i++ {
 		trackNumber := i + 1
 		if format == 1 {
 			trackNumber++
 		}
-		getEvents(tracks[i], trackNumber)
+		notes = append(notes, getEvents(tracks[i], trackNumber)...)
+	}
+
+	sort.Sort(ByRank(notes))
+
+	for _, note := range notes {
+		// index is the index where we are
+		// element is the element from someSlice for where we are
+		fmt.Println(note.String())
 	}
 
 }
 
-func getEvents(track string, trackNumber int) {
+func getEvents(track string, trackNumber int) []Note {
+	// A list of notes'
+	var notes = make([]Note, 0)
+
 	track = track[8*2:] //the first four bytes are the track header and don't contain events
 	//We only care about note on and off
 	currentTime := 0
@@ -167,7 +179,7 @@ func getEvents(track string, trackNumber int) {
 				noteOn(currentTime, eventData, trackNumber)
 			} else if firstChar == "8" {
 				n := noteOff(currentTime, eventData, trackNumber)
-				fmt.Println(n.String())
+				notes = append(notes, n)
 			}
 		}
 
@@ -182,6 +194,8 @@ func getEvents(track string, trackNumber int) {
 			get delta time
 			trim delta time from event index indicates the last byte within the delta time
 	*/
+
+	return notes
 }
 
 func stripNoteMeta(data string) (int, int) {
@@ -306,7 +320,7 @@ func getVariableLengthNumber(track string) (int, int) {
 func getTracks(hexMIDI string) ([]string, int) {
 	//Get information from the file header
 	length, format, numTracks := getHeaderInfo(hexMIDI)
-	fmt.Printf("Header Length: %d\nFormat: %d\nNumber of Tracks: %d\n", length, format, numTracks)
+
 	//We'll split the rest of the hex string into the tracks
 	//hexMIDI[(8+length)*2:)] gets rid of the header (length doesn't include the first 8 bytes
 	//Split after N uses the track end signifier to split the string into the remaining tracks
