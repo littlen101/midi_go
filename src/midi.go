@@ -1,3 +1,11 @@
+/*
+ * Author: Nickolas Lewis, nlewis2016@my.fit.edu
+ * Author: Javier Munoz, jmunoz2014@my.fit.edu
+ * Course: CSE 4250, Spring 2019
+ * Project: Proj2, Midi Decoder
+ * Implementation: go version go1.11.5 windows 10
+ */
+
 package main
 
 import (
