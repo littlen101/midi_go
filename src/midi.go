@@ -126,14 +126,19 @@ func (n *Note) String() string {
 var notesOnStack NoteStack     //Holds Partial Notes
 var notesOnContainer NoteStack //Holds Partial Notes while search stack for note to turn off
 
-// ByAge implements sort.Interface for []Person based on
-// the Age field.
+// ByRank implements sort.Interface for []Note based on
+// the compare criteria.
 type ByRank []Note
 
 func (a ByRank) Len() int           { return len(a) }
 func (a ByRank) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a ByRank) Less(i, j int) bool { return a[i].compare(a[j]) >= 0 }
 
+// ---- End ByRank ------
+
+// Creates Stacks , Opens file and converts it into hex, converts hex into string
+// Separates the header and tracks and gets a slice of Note
+// Sorts the slice of Note and prints the contents
 func main() {
 	notesOnStack = NoteStack{make([]PartialNote, 0)}
 	notesOnContainer = NoteStack{make([]PartialNote, 0)}
